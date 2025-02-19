@@ -89,8 +89,8 @@ A powerful web-based platform for data cleaning, analysis, and business insights
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/data-analysis-platform.git
-   cd data-analysis-platform
+   git clone https://github.com/Micheal-Hany/analysis-helper-framework.git
+   cd analysis-helper-framework
    ```
 
 2. **Install dependencies**
