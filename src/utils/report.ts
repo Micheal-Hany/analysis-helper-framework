@@ -21,157 +21,141 @@ export function generateReport(
   doc.text(`Dataset: ${originalFilename}`, 20, 50);
   doc.text(`Generated: ${now}`, 20, 60);
 
-  // Business Domain Overview
+  // Data Quality Overview
   doc.addPage();
   doc.setFontSize(20);
-  doc.setTextColor(44, 62, 80);
-  doc.text('Business Domain Overview', 20, 20);
+  doc.text('Data Quality Overview', 20, 20);
 
-  // Generate dynamic domain overview based on data characteristics
-  const numericColumns = Object.entries(stats.columns).filter(([, stats]) => stats.type === 'numeric');
-  const categoricalColumns = Object.entries(stats.columns).filter(([, stats]) => stats.type === 'categorical');
-  
-  const hasFinancialData = numericColumns.some(([col]) => 
-    col.toLowerCase().includes('revenue') || 
-    col.toLowerCase().includes('cost') || 
-    col.toLowerCase().includes('price')
-  );
-  
-  const hasSupplyChainData = Object.keys(stats.columns).some(col => 
-    col.toLowerCase().includes('inventory') ||
-    col.toLowerCase().includes('stock') ||
-    col.toLowerCase().includes('shipping') ||
-    col.toLowerCase().includes('supplier')
-  );
-  
-  const hasManufacturingData = Object.keys(stats.columns).some(col =>
-    col.toLowerCase().includes('production') ||
-    col.toLowerCase().includes('manufacturing') ||
-    col.toLowerCase().includes('defect')
-  );
-
-  // Construct dynamic overview
-  let domainOverview = `This dataset comprises ${stats.rowCount} records across ${stats.columnCount} distinct metrics, `;
-  domainOverview += `focusing on ${[
-    hasFinancialData ? 'financial performance' : '',
-    hasSupplyChainData ? 'supply chain operations' : '',
-    hasManufacturingData ? 'manufacturing processes' : ''
-  ].filter(Boolean).join(', ')}. `;
-  
-  domainOverview += `The data encompasses ${numericColumns.length} quantitative metrics and ${categoricalColumns.length} categorical variables, `;
-  domainOverview += 'providing a comprehensive view of the business operations.';
-
-  doc.setFontSize(12);
-  doc.setTextColor(52, 73, 94);
-  const domainLines = doc.splitTextToSize(domainOverview, 170);
-  doc.text(domainLines, 20, 40);
-
-  // Data Characteristics
-  doc.setFontSize(16);
-  doc.text('Key Data Characteristics', 20, 70);
-  
-  const dataCharacteristics = [
+  const dataQualityMetrics = [
     ['Total Records', stats.rowCount.toString()],
-    ['Total Metrics', stats.columnCount.toString()],
-    ['Numeric Metrics', numericColumns.length.toString()],
-    ['Categorical Metrics', categoricalColumns.length.toString()],
-    ['Data Completeness', `${(100 - getAverageMissingPercentage(stats)).toFixed(1)}%`],
-    ['Duplicate Rate', `${((stats.duplicateRows / stats.rowCount) * 100).toFixed(1)}%`]
+    ['Total Fields', stats.columnCount.toString()],
+    ['Duplicate Records', stats.duplicateRows.toString()],
+    ['Data Completeness', `${(100 - getAverageMissingPercentage(stats)).toFixed(1)}%`]
   ];
 
   doc.autoTable({
-    startY: 80,
-    head: [['Characteristic', 'Value']],
-    body: dataCharacteristics,
+    startY: 30,
+    head: [['Metric', 'Value']],
+    body: dataQualityMetrics,
     theme: 'grid',
     headStyles: { fillColor: [41, 128, 185] },
     styles: { fontSize: 12 }
   });
 
-  // Column Analysis and Descriptions
+  // Missing Values Summary
+  const missingValuesSummary = Object.entries(stats.columns)
+    .filter(([, colStats]) => colStats.missingCount > 0)
+    .map(([column, colStats]) => [
+      column,
+      colStats.missingCount.toString(),
+      `${colStats.missingPercentage.toFixed(1)}%`
+    ]);
+
+  if (missingValuesSummary.length > 0) {
+    doc.addPage();
+    doc.setFontSize(20);
+    doc.text('Missing Values Analysis', 20, 20);
+
+    doc.autoTable({
+      startY: 30,
+      head: [['Column', 'Missing Count', 'Missing %']],
+      body: missingValuesSummary,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+      styles: { fontSize: 12 }
+    });
+  }
+
+  // Business Insights
   doc.addPage();
   doc.setFontSize(20);
-  doc.setTextColor(44, 62, 80);
-  doc.text('Data Dictionary & Analysis', 20, 20);
+  doc.text('Business Insights & Recommendations', 20, 20);
 
   let yPosition = 40;
-  Object.entries(stats.columns).forEach(([columnName, columnStats]) => {
+  insights.forEach((insight, index) => {
     if (yPosition > 250) {
       doc.addPage();
       yPosition = 20;
     }
 
-    // Column Name and Type
+    // Insight Title with Impact Indicator
     doc.setFontSize(14);
     doc.setTextColor(41, 128, 185);
-    doc.text(`${columnName} (${columnStats.type})`, 20, yPosition);
-
-    // Generate dynamic column description
-    let description = '';
-    if (columnStats.type === 'numeric') {
-      const stats = columnStats.numericStats!;
-      description = `Numerical metric with values ranging from ${stats.min.toFixed(2)} to ${stats.max.toFixed(2)}. `;
-      description += `Average value is ${stats.mean.toFixed(2)} with a standard deviation of ${stats.std.toFixed(2)}. `;
-      if (stats.outliers.length > 0) {
-        description += `Contains ${stats.outliers.length} outliers that may require attention. `;
-      }
-      if (columnStats.missingPercentage > 0) {
-        description += `Missing data: ${columnStats.missingPercentage.toFixed(1)}% of records. `;
-      }
-    } else {
-      const stats = columnStats.categoricalStats!;
-      const topCats = stats.topCategories.map(c => c.value).slice(0, 3).join(', ');
-      description = `Categorical variable with ${columnStats.uniqueValues} unique values. `;
-      description += `Most common values: ${topCats}. `;
-      if (columnStats.missingPercentage > 0) {
-        description += `Missing data: ${columnStats.missingPercentage.toFixed(1)}% of records. `;
-      }
-    }
-
-    // Add business context based on column name
-    if (columnName.toLowerCase().includes('revenue') || columnName.toLowerCase().includes('cost')) {
-      description += 'Critical financial metric for business performance analysis.';
-    } else if (columnName.toLowerCase().includes('time') || columnName.toLowerCase().includes('duration')) {
-      description += 'Important efficiency indicator for process optimization.';
-    } else if (columnName.toLowerCase().includes('quantity') || columnName.toLowerCase().includes('level')) {
-      description += 'Key operational metric for resource management.';
-    }
-
+    const impactColor = getImpactColor(insight.impact);
+    doc.setTextColor(impactColor[0], impactColor[1], impactColor[2]);
+    doc.text(`${index + 1}. ${insight.title} [Impact: ${insight.impact.toUpperCase()}]`, 20, yPosition);
+    
+    // Insight Description
     doc.setFontSize(12);
     doc.setTextColor(52, 73, 94);
-    const descriptionLines = doc.splitTextToSize(description, 170);
+    const descriptionLines = doc.splitTextToSize(insight.description, 170);
     doc.text(descriptionLines, 25, yPosition + 10);
+    
+    // Recommendations
+    doc.setFontSize(12);
+    doc.setTextColor(52, 73, 94);
+    doc.text('Recommendations:', 25, yPosition + 25);
+    
+    insight.recommendations.forEach((rec, i) => {
+      doc.text(`• ${rec}`, 30, yPosition + 35 + (i * 10));
+    });
 
-    // Add mini statistics table
-    const statsData = [];
-    if (columnStats.type === 'numeric') {
-      statsData.push(
-        ['Metric', 'Value'],
-        ['Mean', columnStats.numericStats!.mean.toFixed(2)],
-        ['Median', columnStats.numericStats!.median.toFixed(2)],
-        ['Std Dev', columnStats.numericStats!.std.toFixed(2)]
+    yPosition += 60 + (insight.recommendations.length * 10);
+  });
+
+  // Detailed Column Analysis
+  doc.addPage();
+  doc.setFontSize(20);
+  doc.setTextColor(44, 62, 80);
+  doc.text('Detailed Column Analysis', 20, 20);
+
+  let columnY = 40;
+  Object.entries(stats.columns).forEach(([columnName, columnStats]) => {
+    if (columnY > 250) {
+      doc.addPage();
+      columnY = 20;
+    }
+
+    // Column Header
+    doc.setFontSize(14);
+    doc.setTextColor(41, 128, 185);
+    doc.text(columnName, 20, columnY);
+
+    // Column Details
+    const details = [];
+    details.push(['Type', columnStats.type]);
+    details.push(['Missing Values', `${columnStats.missingPercentage.toFixed(1)}%`]);
+    details.push(['Unique Values', columnStats.uniqueValues.toString()]);
+
+    if (columnStats.type === 'numeric' && columnStats.numericStats) {
+      details.push(
+        ['Mean', columnStats.numericStats.mean.toFixed(2)],
+        ['Median', columnStats.numericStats.median.toFixed(2)],
+        ['Std Dev', columnStats.numericStats.std.toFixed(2)],
+        ['Range', `${columnStats.numericStats.min.toFixed(2)} - ${columnStats.numericStats.max.toFixed(2)}`],
+        ['Outliers', columnStats.numericStats.outliers.length.toString()]
       );
-    } else {
-      statsData.push(
-        ['Metric', 'Value'],
-        ['Unique Values', columnStats.uniqueValues.toString()],
-        ['Top Value', columnStats.categoricalStats!.topCategories[0]?.value || 'N/A'],
-        ['Missing %', `${columnStats.missingPercentage.toFixed(1)}%`]
-      );
+    }
+
+    if (columnStats.type === 'categorical' && columnStats.categoricalStats) {
+      const topCategories = columnStats.categoricalStats.topCategories
+        .map(cat => `${cat.value} (${cat.count})`)
+        .join(', ');
+      details.push(['Top Categories', topCategories]);
     }
 
     doc.autoTable({
-      startY: yPosition + 10 + (descriptionLines.length * 7),
-      body: statsData,
+      startY: columnY + 5,
+      body: details,
       theme: 'plain',
       styles: { fontSize: 10 },
       columnStyles: {
         0: { fontStyle: 'bold', cellWidth: 40 },
-        1: { cellWidth: 40 }
+        1: { cellWidth: 130 }
       }
     });
 
-    yPosition += 50 + (descriptionLines.length * 7);
+    columnY = doc.lastAutoTable?.finalY! + 20;
   });
 
   // Correlations Analysis (if applicable)
@@ -180,31 +164,26 @@ export function generateReport(
     doc.setFontSize(20);
     doc.text('Correlation Analysis', 20, 20);
 
-    // Filter significant correlations
-    const significantCorrelations = [];
-    Object.entries(stats.correlations).forEach(([col1, correlations]) => {
-      Object.entries(correlations).forEach(([col2, value]) => {
-        if (Math.abs(value) > 0.5 && col1 !== col2) {
-          significantCorrelations.push([
-            col1,
-            col2,
-            value.toFixed(2),
-            getCorrelationStrength(value)
-          ]);
-        }
-      });
+    const correlationData = Object.entries(stats.correlations).map(([col1, correlations]) => {
+      return [col1, ...Object.values(correlations).map(v => v.toFixed(2))];
     });
 
-    if (significantCorrelations.length > 0) {
-      doc.autoTable({
-        startY: 30,
-        head: [['Metric 1', 'Metric 2', 'Correlation', 'Strength']],
-        body: significantCorrelations,
-        theme: 'grid',
-        headStyles: { fillColor: [41, 128, 185] },
-        styles: { fontSize: 10 }
-      });
-    }
+    doc.autoTable({
+      startY: 30,
+      head: [['', ...Object.keys(stats.correlations)]],
+      body: correlationData,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+      styles: { fontSize: 10 },
+      didDrawCell: (data) => {
+        if (data.section === 'body' && data.column.index > 0) {
+          const value = parseFloat(data.cell.text[0]);
+          if (Math.abs(value) > 0.7) {
+            data.cell.styles.fillColor = [41, 128, 185, 0.3];
+          }
+        }
+      }
+    });
   }
 
   // Save the PDF
@@ -218,11 +197,15 @@ function getAverageMissingPercentage(stats: DatasetStats): number {
   return percentages.reduce((a, b) => a + b, 0) / percentages.length;
 }
 
-function getCorrelationStrength(value: number): string {
-  const absValue = Math.abs(value);
-  if (absValue >= 0.8) return 'Very Strong';
-  if (absValue >= 0.6) return 'Strong';
-  if (absValue >= 0.4) return 'Moderate';
-  if (absValue >= 0.2) return 'Weak';
-  return 'Very Weak';
+function getImpactColor(impact: 'high' | 'medium' | 'low'): [number, number, number] {
+  switch (impact) {
+    case 'high':
+      return [231, 76, 60]; // Red
+    case 'medium':
+      return [243, 156, 18]; // Orange
+    case 'low':
+      return [46, 204, 113]; // Green
+    default:
+      return [52, 73, 94]; // Default gray
+  }
 }
