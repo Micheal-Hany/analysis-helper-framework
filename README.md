@@ -66,7 +66,7 @@ A powerful web-based application for comprehensive data analysis, cleaning, and 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/data-analysis-platform.git
+git clone https://github.com/Micheal-Hany/analysis-helper-framework.git
 ```
 
 2. Install dependencies:
